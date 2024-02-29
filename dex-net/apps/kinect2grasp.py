@@ -12,6 +12,7 @@ from visualization_msgs.msg import Marker
 import numpy as np
 import pointclouds
 import voxelgrid
+import pcl
 from autolab_core import YamlConfig
 from dexnet.grasping import RobotGripper
 from dexnet.grasping import GpgGraspSamplerPcl
@@ -39,7 +40,7 @@ gripper_name = 'robotiq_85'
 gripper = RobotGripper.load(gripper_name, os.environ['PointNetGPD_FOLDER'] + "/dex-net/data/grippers")
 ags = GpgGraspSamplerPcl(gripper, yaml_config)
 value_fc = 0.4  # no use, set a random number
-num_grasps = 40
+num_grasps = 5
 num_workers = 20
 max_num_samples = 150
 n_voxel = 500
@@ -128,23 +129,28 @@ def cal_grasp(msg, cam_pos_):
     remove_points = False
     if remove_points:
         points_ = remove_table_points(points_, vis=True)
+        
+
     point_cloud = pcl.PointCloud(points_)
     norm = point_cloud.make_NormalEstimation()
-    norm.set_KSearch(30)  # critical parameter when calculating the norms
+    norm.set_KSearch(15)  # critical parameter when calculating the norms
     normals = norm.compute()
     surface_normal = normals.to_array()
     surface_normal = surface_normal[:, 0:3]
+
     vector_p2cam = cam_pos_ - points_
     vector_p2cam = vector_p2cam / np.linalg.norm(vector_p2cam, axis=1).reshape(-1, 1)
     tmp = np.dot(vector_p2cam, surface_normal.T).diagonal()
     angel = np.arccos(np.clip(tmp, -1.0, 1.0))
     wrong_dir_norm = np.where(angel > np.pi * 0.5)[0]
     tmp = np.ones([len(angel), 3])
+    
     tmp[wrong_dir_norm, :] = -1
     surface_normal = surface_normal * tmp
     select_point_above_table = 0.010
     #  modify of gpg: make it as a parameter. avoid select points near the table.
-    points_for_sample = points_[np.where(points_[:, 2] > select_point_above_table)[0]]
+    
+    points_for_sample = points_ #points_[np.where(points_[:, 2] > select_point_above_table)[0]]
     if len(points_for_sample) == 0:
         rospy.loginfo("Can not seltect point, maybe the point cloud is too low?")
         return [], points_, surface_normal
@@ -403,7 +409,7 @@ if __name__ == '__main__':
     rate = rospy.Rate(10)
     rospy.set_param("/robot_at_home", "true")  # only use when in simulation test.
     rospy.loginfo("getting transform from kinect2 to table top")
-    cam_pos = None
+    cam_pos = 0
     if cam_pos is None:
         print("Please change the above line to the position between /table_top and /kinect2_ir_optical_frame")
         print("In ROS, you can run: rosrun tf tf_echo /table_top /kinect2_ir_optical_frame")
@@ -421,7 +427,7 @@ if __name__ == '__main__':
             if single_obj_testing:
                 input("Pleas put object on table and press any number to continue!")
         rospy.loginfo("rospy is waiting for message: /table_top_points")
-        kinect_data = rospy.wait_for_message("/table_top_points", PointCloud2)
+        kinect_data = rospy.wait_for_message("/kinect2/sd/points", PointCloud2)
         real_good_grasp = []
         real_bad_grasp = []
         real_score_value = []
@@ -476,6 +482,7 @@ if __name__ == '__main__':
                     else:
                         points_modify = in_ind_points[ii][np.random.choice(len(in_ind_points[ii]),
                                                                            input_points_num, replace=True)]
+                    print('hello')
                     if_good_grasp, grasp_score_tmp = test_network(model.eval(), points_modify)
                     predict.append(if_good_grasp.item())
                     grasp_score.append(grasp_score_tmp)
