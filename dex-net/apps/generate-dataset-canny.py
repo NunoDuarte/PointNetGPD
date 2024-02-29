@@ -19,7 +19,10 @@ import multiprocessing
 import logging
 
 logging.getLogger().setLevel(logging.FATAL)
-os.makedirs("./generated_grasps", exist_ok=True)
+save_dir = "/media/nuno/Data/ycb-tools/"
+os.makedirs(save_dir + "models/real_data_Nuno", exist_ok=True)
+#os.makedirs(save_dir + "generated_grasps", exist_ok=True)
+#os.makedirs("./generated_grasps", exist_ok=True)
 
 
 def get_file_name(file_dir_):
@@ -33,15 +36,19 @@ def get_file_name(file_dir_):
 
 def do_job(i):
     object_name = file_list_all[i].split("/")[-1]
-    good_grasp = multiprocessing.Manager().list()
-    p_set = [multiprocessing.Process(target=worker, args=(i, 100, 20, good_grasp)) for _ in
-             range(50)]  # grasp_amount per friction: 20*40
+    queue = multiprocessing.Manager().list()
+    good_grasp = queue
+    p_set = [multiprocessing.Process(target=worker, args=(i, 2, 2, good_grasp)) for _ in
+             range(1)]  # grasp_amount per friction: 20*40
     [p.start() for p in p_set]
+    print('hello')
     [p.join() for p in p_set]
+    print('a')
     good_grasp = list(good_grasp)
+    print('b')
     if len(good_grasp) == 0:
         return
-    good_grasp_file_name = "./generated_grasps/{}_{}_{}".format(filename_prefix, str(object_name), str(len(good_grasp)))
+    good_grasp_file_name = save_dir + "generated_grasps/{}_{}_{}".format(filename_prefix, str(object_name), str(len(good_grasp)))
     with open(good_grasp_file_name + ".pickle", "wb") as f:
         pickle.dump(good_grasp, f)
 
@@ -72,6 +79,7 @@ def worker(i, sample_nums, grasp_amount, good_grasp):
     else:
         raise NameError("Can not support this sampler")
     print("Log: do job", i)
+    #print(str(file_list_all[i]))
     if os.path.exists(str(file_list_all[i]) + "/google_512k/nontextured.obj"):
         of = ObjFile(str(file_list_all[i]) + "/google_512k/nontextured.obj")
         sf = SdfFile(str(file_list_all[i]) + "/google_512k/nontextured.sdf")
@@ -149,16 +157,19 @@ if __name__ == "__main__":
     else:
         filename_prefix = "default"
     pointnetgpd_dir = os.environ["PointNetGPD_FOLDER"]
-    file_dir = pointnetgpd_dir + "/PointNetGPD/data/ycb-tools/models/ycb"
+    #file_dir = "/media/nuno/Data/ycb-tools/models/ycb"
+    file_dir = "/media/nuno/Data/ycb-tools/models/real_data_Nuno"
+    #file_dir = pointnetgpd_dir + "/PointNetGPD/data/ycb-tools/models/ycb"
     yaml_config = YamlConfig(pointnetgpd_dir + "/dex-net/test/config.yaml")
     gripper_name = "robotiq_85"
     gripper = RobotGripper.load(gripper_name, pointnetgpd_dir + "/dex-net/data/grippers")
-    grasp_sample_method = "antipodal"
+    grasp_sample_method = "uniform"
     file_list_all = get_file_name(file_dir)
     object_numbers = file_list_all.__len__()
 
     job_list = np.arange(object_numbers)
     job_list = list(job_list)
+    print('job list', len(job_list))
     pool_size = 1  # number of jobs did at same time
     assert (pool_size <= len(job_list))
     # Initialize pool

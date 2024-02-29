@@ -70,7 +70,7 @@ def do_job(job_i):
 
 
 if __name__ == "__main__":
-    file_dir = os.environ["PointNetGPD_FOLDER"] + "/PointNetGPD/data/ycb-tools/models/ycb"
+    file_dir = "/media/nuno/Data/ycb-tools/models/ycb"
     mlab.figure(bgcolor=(1, 1, 1), fgcolor=(0.7, 0.7, 0.7))
     file_list_all = get_file_name(file_dir)
     object_numbers = file_list_all.__len__()
@@ -90,22 +90,31 @@ if __name__ == "__main__":
     surface_points, _ = graspable.sdf.surface_points(grid_basis=False)
     all_p = surface_points
     method = "voxel"
+    print('hello')
     if method == "random":
         surface_points = surface_points[np.random.choice(surface_points.shape[0], 1000, replace=False)]
         surface_normal = []
     elif method == "voxel":
         surface_points = surface_points.astype(np.float32)
         p = pcl.PointCloud(surface_points)
+        print('a')
         voxel = p.make_voxel_grid_filter()
+        input()
         voxel.set_leaf_size(*([graspable.sdf.resolution * 5] * 3))
-        surface_points = voxel.filter().to_array()
+        print('a')
+        #print(voxel.filter())
+        input()
+        #surface_points = voxel.filter().to_array()
 
+        print('a')
         # cal normal with pcl
         use_voxel = False  # use voxelized point to get norm is not accurate
         if use_voxel:
             norm = voxel.filter().make_NormalEstimation()
         else:
+            print('a')
             norm = p.make_NormalEstimation()
+        print('a')
 
         norm.set_KSearch(10)
         normals = norm.compute()
@@ -131,7 +140,7 @@ if __name__ == "__main__":
             # show_obj(all_p)
     else:
         raise ValueError("No such method", method)
-
+    print('b')
     use_meshpy = False
     if use_meshpy:
         normal = []

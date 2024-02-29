@@ -9,14 +9,25 @@ import numpy as np
 import random
 import time
 import scipy.stats as stats
-import open3d as o3d
+try:
+    import pcl
+except ImportError as e:
+    print("[grasp_sampler] {}".format(e))
+import dexnet
 
-from dexnet.grasping import Grasp, Contact3D, ParallelJawPtGrasp3D, PointGraspMetrics3D, GraspableObject3D
+from dexnet.grasping import Grasp, Contact3D, ParallelJawPtGrasp3D, PointGraspMetrics3D  # , GraspableObject3D
 from autolab_core import RigidTransform
 import scipy
 # create logger
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
+
+USE_OPENRAVE = True
+try:
+    import openravepy as rave
+except ImportError:
+    # logger.warning('Failed to import OpenRAVE')
+    USE_OPENRAVE = False
 
 try:
     import rospy
@@ -284,7 +295,7 @@ class GraspSampler:
         mlab.quiver3d(un2[0], un2[1], un2[2], grasp_normal[0], grasp_normal[1], grasp_normal[2],
                       scale_factor=.03, line_width=0.05, color=(1, 0, 0), mode='arrow')
 
-    def get_hand_points(self, grasp_bottom_center, approach_normal, binormal):
+    def gpd_get_hand_points_nogui(self, grasp_bottom_center, approach_normal, binormal):
         hh = self.gripper.hand_height
         fw = self.gripper.finger_width
         hod = self.gripper.hand_outer_diameter
@@ -316,8 +327,135 @@ class GraspSampler:
         p18 = -approach_normal * hh + p15
         p19 = -approach_normal * hh + p16
         p20 = -approach_normal * hh + p12
+        
         p = np.vstack([np.array([0, 0, 0]), p1, p2, p3, p4, p5, p6, p7, p8, p9, p10,
                        p11, p12, p13, p14, p15, p16, p17, p18, p19, p20])
+        p_contact = np.vstack([p1,p2,p3,p4])
+        return p, p_contact
+        
+    def gpd_get_hand_points(self, grasp_bottom_center, approach_normal, binormal):
+        hh = self.gripper.hand_height
+        fw = self.gripper.finger_width
+        hod = self.gripper.hand_outer_diameter
+        hd = self.gripper.hand_depth
+        open_w = hod - fw * 2
+        minor_pc = np.cross(approach_normal, binormal)
+        minor_pc = minor_pc / np.linalg.norm(minor_pc)
+        p5_p6 = minor_pc * hh * 0.5 + grasp_bottom_center
+        p7_p8 = -minor_pc * hh * 0.5 + grasp_bottom_center
+        p5 = -binormal * open_w * 0.5 + p5_p6
+        p6 = binormal * open_w * 0.5 + p5_p6
+        p7 = binormal * open_w * 0.5 + p7_p8
+        p8 = -binormal * open_w * 0.5 + p7_p8
+        p1 = approach_normal * hd + p5
+        p2 = approach_normal * hd + p6
+        p3 = approach_normal * hd + p7
+        p4 = approach_normal * hd + p8
+
+        p9 = -binormal * fw + p1
+        p10 = -binormal * fw + p4
+        p11 = -binormal * fw + p5
+        p12 = -binormal * fw + p8
+        p13 = binormal * fw + p2
+        p14 = binormal * fw + p3
+        p15 = binormal * fw + p6
+        p16 = binormal * fw + p7
+
+        p17 = -approach_normal * hh + p11
+        p18 = -approach_normal * hh + p15
+        p19 = -approach_normal * hh + p16
+        p20 = -approach_normal * hh + p12
+        
+        # color 4 points of the plane
+        N = 4
+        p_4points = np.array([p1,p2,p3,p4])
+        #p_4points = np.array([p5,p6,p7,p8])
+        (x, y, z) = p_4points[:,0], p_4points[:,1], p_4points[:,2]
+        colors = np.linspace(0, 1, N)
+        
+        nodes = mlab.points3d(x, y, z, scale_factor=0.0025)
+        nodes.glyph.scale_mode = 'scale_by_vector'
+        nodes.mlab_source.dataset.point_data.scalars = colors        
+        
+        p = np.vstack([np.array([0, 0, 0]), p1, p2, p3, p4, p5, p6, p7, p8, p9, p10,
+                       p11, p12, p13, p14, p15, p16, p17, p18, p19, p20])
+        p_contact = np.vstack([p1,p2,p3,p4])
+        return p, p_contact
+        
+    def gpd_get_hand(self, grasp_bottom_center, approach_normal, binormal):
+        hh = self.gripper.hand_height
+        fw = self.gripper.finger_width
+        hod = self.gripper.hand_outer_diameter
+        hd = self.gripper.hand_depth
+        open_w = hod - fw * 2
+        minor_pc = np.cross(approach_normal, binormal)
+        minor_pc = minor_pc / np.linalg.norm(minor_pc)
+        p5_p6 = minor_pc * hh * 0.5 + grasp_bottom_center
+        p7_p8 = -minor_pc * hh * 0.5 + grasp_bottom_center
+        p5 = -binormal * open_w * 0.5 + p5_p6
+        p6 = binormal * open_w * 0.5 + p5_p6
+        p7 = binormal * open_w * 0.5 + p7_p8
+        p8 = -binormal * open_w * 0.5 + p7_p8
+        p1 = approach_normal * hd + p5
+        p2 = approach_normal * hd + p6
+        p3 = approach_normal * hd + p7
+        p4 = approach_normal * hd + p8
+
+        p9 = -binormal * fw + p1
+        p10 = -binormal * fw + p4
+        p11 = -binormal * fw + p5
+        p12 = -binormal * fw + p8
+        p13 = binormal * fw + p2
+        p14 = binormal * fw + p3
+        p15 = binormal * fw + p6
+        p16 = binormal * fw + p7
+
+        p17 = -approach_normal * hh + p11
+        p18 = -approach_normal * hh + p15
+        p19 = -approach_normal * hh + p16
+        p20 = -approach_normal * hh + p12    
+        
+        p = np.vstack([np.array([0, 0, 0]), p1, p2, p3, p4, p5, p6, p7, p8, p9, p10,
+                       p11, p12, p13, p14, p15, p16, p17, p18, p19, p20])
+        p_contact = np.vstack([p1,p2,p3,p4])
+        return p, p_contact
+
+    def get_hand_points(self, grasp_bottom_center, approach_normal, binormal):
+        hh = self.gripper.hand_height
+        fw = self.gripper.finger_width
+        hod = self.gripper.hand_outer_diameter
+        hd = self.gripper.hand_depth
+        open_w = hod - fw * 2
+        minor_pc = np.cross(approach_normal, binormal)
+        minor_pc = minor_pc / np.linalg.norm(minor_pc)
+        p5_p6 = minor_pc * hh * 0.5 + grasp_bottom_center
+        p7_p8 = -minor_pc * hh * 0.5 + grasp_bottom_center
+        p5 = -binormal * open_w * 0.5 + p5_p6
+        p6 = binormal * open_w * 0.5 + p5_p6
+        p7 = binormal * open_w * 0.5 + p7_p8
+        p8 = -binormal * open_w * 0.5 + p7_p8
+        p1 = approach_normal * hd + p5
+        p2 = approach_normal * hd + p6
+        p3 = approach_normal * hd + p7
+        p4 = approach_normal * hd + p8
+
+        p9 = -binormal * fw + p1
+        p10 = -binormal * fw + p4
+        p11 = -binormal * fw + p5
+        p12 = -binormal * fw + p8
+        p13 = binormal * fw + p2
+        p14 = binormal * fw + p3
+        p15 = binormal * fw + p6
+        p16 = binormal * fw + p7
+
+        p17 = -approach_normal * hh + p11
+        p18 = -approach_normal * hh + p15
+        p19 = -approach_normal * hh + p16
+        p20 = -approach_normal * hh + p12  
+        
+        p = np.vstack([np.array([0, 0, 0]), p1, p2, p3, p4, p5, p6, p7, p8, p9, p10,
+                       p11, p12, p13, p14, p15, p16, p17, p18, p19, p20])
+        p_contact = np.vstack([p1,p2,p3,p4])
         return p
 
     def show_grasp_3d(self, hand_points, color=(0.003, 0.50196, 0.50196)):
@@ -332,6 +470,11 @@ class GraspSampler:
                      (15, 11, 17), (15, 17, 18), (6, 7, 8), (6, 8, 5)]
         mlab.triangular_mesh(hand_points[:, 0], hand_points[:, 1], hand_points[:, 2],
                              triangles, color=color, opacity=0.5)
+                             
+    def show_area_of_contact(self, contact_points, color=(1, 0, 0)):
+    	
+    	triangles = [(1, 2, 3), (0, 1, 2), (1, 0, 3), (3, 2, 0)]
+    	mlab.triangular_mesh(contact_points[:, 0], contact_points[:, 1], contact_points[:, 2], triangles, color=color, opacity=0.2)
 
     def check_collision_square(self, grasp_bottom_center, approach_normal, binormal,
                                minor_pc, graspable, p, way, vis=False):
@@ -343,7 +486,7 @@ class GraspSampler:
         minor_pc = minor_pc / np.linalg.norm(minor_pc)
         matrix = np.hstack([approach_normal.T, binormal.T, minor_pc.T])
         grasp_matrix = matrix.T  # same as cal the inverse
-        if isinstance(graspable, GraspableObject3D):
+        if isinstance(graspable, dexnet.grasping.graspable_object.GraspableObject3D):
             points = graspable.sdf.surface_points(grid_basis=False)[0]
         else:
             points = graspable
@@ -712,7 +855,7 @@ class AntipodalGraspSampler(GraspSampler):
 
         for k, x_surf in enumerate(shuffled_surface_points):
             # print("k:", k, "len(grasps):", len(grasps))
-            start_time = time.clock()
+            start_time = time.time()
 
             # perturb grasp for num samples
             for i in range(self.num_samples):
@@ -725,11 +868,11 @@ class AntipodalGraspSampler(GraspSampler):
                 cone_succeeded, cone1, n1 = c1.friction_cone(self.num_cone_faces, self.friction_coef)
                 if not cone_succeeded:
                     continue
-                cone_time = time.clock()
+                cone_time = time.time()
 
                 # sample grasp axes from friction cone
                 v_samples = self.sample_from_cone(n1, tx1, ty1, num_samples=1)
-                sample_time = time.clock()
+                sample_time = time.time()
 
                 for v in v_samples:
                     if vis:
@@ -843,10 +986,10 @@ class GpgGraspSampler(GraspSampler):
         surface_points, _ = graspable.sdf.surface_points(grid_basis=False)
         all_points = surface_points
         # construct pynt point cloud and voxel grid
-        pcd = o3d.geometry.PointCloud()
-        pcd.points = o3d.utility.Vector3dVector(surface_points.astype(np.float32))
-        pcd = pcd.voxel_down_sample(voxel_size=graspable.sdf.resolution * params["voxel_grid_ratio"])
-        surface_points = np.asarray(pcd.points)
+        p_cloud = pcl.PointCloud(surface_points.astype(np.float32))
+        voxel = p_cloud.make_voxel_grid_filter()
+        voxel.set_leaf_size(*([graspable.sdf.resolution * params['voxel_grid_ratio']] * 3))
+        surface_points = voxel.filter().to_array()
 
         num_surface = surface_points.shape[0]
         sampled_surface_amount = 0
@@ -1021,10 +1164,10 @@ class PointGraspSampler(GraspSampler):
         surface_points, _ = graspable.sdf.surface_points(grid_basis=False)
         all_points = surface_points
         # construct pynt point cloud and voxel grid
-        pcd = o3d.geometry.PointCloud()
-        pcd.points = o3d.utility.Vector3dVector(surface_points.astype(np.float32))
-        pcd = pcd.voxel_down_sample(voxel_size=graspable.sdf.resolution * params["voxel_grid_ratio"])
-        surface_points = np.asarray(pcd.points)
+        p_cloud = pcl.PointCloud(surface_points.astype(np.float32))
+        voxel = p_cloud.make_voxel_grid_filter()
+        voxel.set_leaf_size(*([graspable.sdf.resolution * params['voxel_grid_ratio']] * 3))
+        surface_points = voxel.filter().to_array()
 
         num_surface = surface_points.shape[0]
         sampled_surface_amount = 0
@@ -1386,8 +1529,8 @@ class GpgGraspSamplerPcl(GraspSampler):
     http://journals.sagepub.com/doi/10.1177/0278364917735594
     """
 
-    def sample_grasps(self, point_cloud, points_for_sample, all_normal, num_grasps=20, max_num_samples=200,
-                      show_final_grasp=False, **kwargs):
+    def sample_grasps(self, point_cloud,points_for_sample, all_normal, num_grasps=20, max_num_samples=200, show_final_grasp=False,
+                      **kwargs):
         """
         Returns a list of candidate grasps for graspable object using uniform point pairs from the SDF
 
@@ -1449,7 +1592,7 @@ class GpgGraspSamplerPcl(GraspSampler):
             if not robot_at_home:
                 rospy.loginfo("robot is moving! wait untill it go home. Return empty gpg!")
                 return []
-            scipy.random.seed()  # important! without this, the worker will get a pseudo-random sequences.
+            random.seed()  # important! without this, the worker will get a pseudo-random sequences.
             ind = np.random.choice(points_for_sample.shape[0], size=1, replace=False)
             selected_surface = points_for_sample[ind, :].reshape(3, )
             if show_final_grasp:
@@ -1468,13 +1611,9 @@ class GpgGraspSamplerPcl(GraspSampler):
 
             # neighbor = selected_surface + 2 * (np.random.rand(3) - 0.5) * r_ball
 
-            pcd = o3d.geometry.PointCloud()
-            pcd.points = o3d.utility.Vector3dVector(point_cloud)
-            pcd_tree = o3d.geometry.KDTreeFlann(pcd)
-            print("Find its neighbors with distance less than r_ball")
-            [k, kd_indices, sqr_distances] = pcd_tree.search_hybrid_vector_3d(selected_surface, r_ball, 100)
-            #TODO, here, we replaced pcl kdtee with open3d. verify the result before using it!
-            print("TODO, here, we replaced pcl kdtee with open3d. verify the result before using it!")
+            selected_surface_pc = pcl.PointCloud(selected_surface.reshape(1, 3))
+            kd = point_cloud.make_kdtree_flann()
+            kd_indices, sqr_distances = kd.radius_search_for_cloud(selected_surface_pc, r_ball, 100)
             for _ in range(len(kd_indices[0])):
                 if sqr_distances[0, _] != 0:
                     # neighbor = point_cloud[kd_indices]
@@ -1630,7 +1769,11 @@ class GpgGraspSamplerPcl(GraspSampler):
             print("current amount of sampled surface:", sampled_surface_amount)
             if params['debug_vis']:  # not sampled_surface_amount % 5:
                 if len(all_points) > 10000:
-                    all_points = all_points[:1000, :]
+                    pc = pcl.PointCloud(all_points)
+                    voxel = pc.make_voxel_grid_filter()
+                    voxel.set_leaf_size(0.01, 0.01, 0.01)
+                    point_cloud = voxel.filter()
+                    all_points = point_cloud.to_array()
                 self.show_all_grasps(all_points, processed_potential_grasp)
                 self.show_points(all_points, scale_factor=0.008)
                 mlab.show()
@@ -1638,7 +1781,7 @@ class GpgGraspSamplerPcl(GraspSampler):
             if len(processed_potential_grasp) >= num_grasps or sampled_surface_amount >= max_num_samples:
                 if show_final_grasp:
                     self.show_all_grasps(all_points, processed_potential_grasp)
-                    self.show_points(all_points, scale_factor=0.002)
+                    self.show_points(all_points, scale_factor=0.01)
                     mlab.points3d(0, 0, 0, scale_factor=0.01, color=(0, 1, 0))
                     table_points = np.array([[-1, 1, 0], [1, 1, 0], [1, -1, 0], [-1, -1, 0]]) * 0.5
                     triangles = [(1, 2, 3), (0, 1, 3)]

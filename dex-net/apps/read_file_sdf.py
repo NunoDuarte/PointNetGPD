@@ -56,12 +56,14 @@ def generate_obj_from_ply(file_name_):
 
 if __name__ == "__main__":
     home_dir = os.environ["PointNetGPD_FOLDER"]
-    file_dir = home_dir + "/data/ycb-tools/models/ycb"  # for google ycb
-    path_sdfgen = home_dir + "/SDFGen/bin/SDFGen"
+    #file_dir = "/media/nuno/Data/ycb-tools/models/real_data_Nuno"
+    file_dir = "/media/nuno/Data/ycb-tools/models/ycb"
+    #file_dir = home_dir + "/PointNetGPD/data/ycb-tools/models/ycb"  # for google ycb
+    path_sdfgen = "~/software/SDFGen/bin/SDFGen"
+    #path_sdfgen = home_dir + "/SDFGen/bin/SDFGen"
     file_list_all = get_file_name(file_dir)
     object_numbers = file_list_all.__len__()
-    if file_list_all == []:
-        print(f"[ERROR] There is no file in {file_dir}, Please check your data folder")
+
     # generate obj from ply file
     for i in file_list_all:
         generate_obj_from_ply(i + "/google_512k/nontextured.ply")

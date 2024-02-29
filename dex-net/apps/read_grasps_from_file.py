@@ -30,10 +30,10 @@ show_fig = True  # show the mayavi figure
 generate_new_file = False  # whether generate new file for collision free grasps
 check_pcd_grasp_points = False
 
-
 def open_npy_and_obj(name_to_open_):
     npy_m_ = np.load(name_to_open_)
-    file_dir = home_dir + "/data/ycb-tools/models/ycb/"
+    file_dir = "/media/nuno/Data/ycb-tools/models/ycb/"
+    #file_dir = home_dir + "/PointNetGPD/data/ycb-tools/models/ycb/"
     object_name_ = name_to_open_.split("/")[-1][:-4]
     ply_name_ = file_dir + object_name_ + "/google_512k/nontextured.ply"
     if not check_pcd_grasp_points:
@@ -191,10 +191,13 @@ def get_grasp_points_num(m, obj_):
     return has_points_, ind_points_
 
 
-if __name__ == "__main__":
-    npy_names = glob.glob(home_dir + "/PointNetGPD/data/ycb_grasp/train/*.npy")
+if __name__ == "__main__":  
+    npy_names = glob.glob("/media/nuno/Data/ycb-tools/generated_grasps/PointNetGPD_grasps_dataset/train/*.npy")
+    #npy_names = glob.glob(home_dir + "/PointNetGPD/data/ycb_grasp/train/*.npy")
     npy_names.sort()
+    print('hey hey')
     for i in range(len(npy_names)):
         grasps_with_score, obj, ply_name, obj_name = open_npy_and_obj(npy_names[i])
         print("load file {}".format(npy_names[i]))
         ind_good_grasp = show_selected_grasps_with_color(grasps_with_score, ply_name, obj_name, obj)
+
