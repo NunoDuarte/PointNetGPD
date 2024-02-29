@@ -17,7 +17,7 @@ parser.add_argument("--cuda", action="store_true", default=False)
 parser.add_argument("--gpu", type=int, default=0)
 parser.add_argument("--load-model", type=str,
                     default="../data/pointnetgpd_3class.model")
-parser.add_argument("--show_final_grasp", action="store_true", default=False)
+parser.add_argument("--show_final_grasp", action="store_true", default=True)
 parser.add_argument("--tray_grasp", action="store_true", default=False)
 parser.add_argument("--using_mp", action="store_true", default=False)
 parser.add_argument("--model_type", type=str)
