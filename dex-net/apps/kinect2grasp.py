@@ -7,6 +7,7 @@
 # File Name  : kinect2grasp.py
 import rospy
 from sensor_msgs.msg import PointCloud2
+from sensor_msgs import point_cloud2
 from visualization_msgs.msg import MarkerArray
 from visualization_msgs.msg import Marker
 import numpy as np
@@ -22,6 +23,7 @@ import sys
 from os import path
 from scipy.stats import mode
 import multiprocessing as mp
+
 try:
     from gpd_grasp_msgs.msg import GraspConfig
     from gpd_grasp_msgs.msg import GraspConfigList
@@ -39,7 +41,7 @@ yaml_config = YamlConfig(os.environ['PointNetGPD_FOLDER'] + "/dex-net/test/confi
 gripper_name = 'robotiq_85'
 gripper = RobotGripper.load(gripper_name, os.environ['PointNetGPD_FOLDER'] + "/dex-net/data/grippers")
 ags = GpgGraspSamplerPcl(gripper, yaml_config)
-value_fc = 0.4  # no use, set a random number
+value_fc = 1.2  # no use, set a random number
 num_grasps = 5
 num_workers = 20
 max_num_samples = 150
@@ -427,7 +429,23 @@ if __name__ == '__main__':
             if single_obj_testing:
                 input("Pleas put object on table and press any number to continue!")
         rospy.loginfo("rospy is waiting for message: /table_top_points")
-        kinect_data = rospy.wait_for_message("/kinect2/sd/points", PointCloud2)
+        #kinect_data = rospy.wait_for_message("/kinect2/sd/points", PointCloud2)
+        
+        # read pcd files
+        cloud = pcl.load('pringles_original.pcd')
+        
+        # Extract point cloud data
+        points = cloud.to_array()
+        
+        # Create ROS PointCloud2 message
+        header = rospy.Header()
+        header.stamp = rospy.Time.now()
+        header.frame_id = "world"  # Set the frame ID accordingly
+        
+        pc2_msg = point_cloud2.create_cloud_xyz32(header, points)
+        kinect_data = pc2_msg 
+        # read pcd files
+       
         real_good_grasp = []
         real_bad_grasp = []
         real_score_value = []
@@ -558,6 +576,10 @@ if __name__ == '__main__':
             rospy.sleep(4)
             pub2.publish(single_grasp_list_pub)
             pub1.publish(marker_array_single)
+            
+            
+        rospy.loginfo("Nuno, I'm exiting here!")
+        exit(-1)
         # pub2.publish(grasp_msg_list)
         rospy.loginfo(" Publishing grasp pose to rviz using marker array and good grasp pose")
         rate.sleep()
