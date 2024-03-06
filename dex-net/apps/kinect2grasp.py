@@ -7,13 +7,11 @@
 # File Name  : kinect2grasp.py
 import rospy
 from sensor_msgs.msg import PointCloud2
-from sensor_msgs import point_cloud2
 from visualization_msgs.msg import MarkerArray
 from visualization_msgs.msg import Marker
 import numpy as np
 import pointclouds
 import voxelgrid
-import pcl
 from autolab_core import YamlConfig
 from dexnet.grasping import RobotGripper
 from dexnet.grasping import GpgGraspSamplerPcl
@@ -23,6 +21,7 @@ import sys
 from os import path
 from scipy.stats import mode
 import multiprocessing as mp
+import pcl 
 
 try:
     from gpd_grasp_msgs.msg import GraspConfig
@@ -41,10 +40,10 @@ yaml_config = YamlConfig(os.environ['PointNetGPD_FOLDER'] + "/dex-net/test/confi
 gripper_name = 'robotiq_85'
 gripper = RobotGripper.load(gripper_name, os.environ['PointNetGPD_FOLDER'] + "/dex-net/data/grippers")
 ags = GpgGraspSamplerPcl(gripper, yaml_config)
-value_fc = 1.2  # no use, set a random number
-num_grasps = 5
+value_fc = 0.4  # no use, set a random number
+num_grasps = 40
 num_workers = 20
-max_num_samples = 150
+max_num_samples = 50
 n_voxel = 500
 
 minimal_points_send_to_point_net = 20
@@ -131,28 +130,23 @@ def cal_grasp(msg, cam_pos_):
     remove_points = False
     if remove_points:
         points_ = remove_table_points(points_, vis=True)
-        
-
     point_cloud = pcl.PointCloud(points_)
     norm = point_cloud.make_NormalEstimation()
-    norm.set_KSearch(15)  # critical parameter when calculating the norms
+    norm.set_KSearch(30)  # critical parameter when calculating the norms
     normals = norm.compute()
     surface_normal = normals.to_array()
     surface_normal = surface_normal[:, 0:3]
-
     vector_p2cam = cam_pos_ - points_
     vector_p2cam = vector_p2cam / np.linalg.norm(vector_p2cam, axis=1).reshape(-1, 1)
     tmp = np.dot(vector_p2cam, surface_normal.T).diagonal()
     angel = np.arccos(np.clip(tmp, -1.0, 1.0))
     wrong_dir_norm = np.where(angel > np.pi * 0.5)[0]
     tmp = np.ones([len(angel), 3])
-    
     tmp[wrong_dir_norm, :] = -1
     surface_normal = surface_normal * tmp
     select_point_above_table = 0.010
     #  modify of gpg: make it as a parameter. avoid select points near the table.
-    
-    points_for_sample = points_ #points_[np.where(points_[:, 2] > select_point_above_table)[0]]
+    points_for_sample = points_[np.where(points_[:, 2] > select_point_above_table)[0]]
     if len(points_for_sample) == 0:
         rospy.loginfo("Can not seltect point, maybe the point cloud is too low?")
         return [], points_, surface_normal
@@ -428,24 +422,8 @@ if __name__ == '__main__':
             rospy.loginfo("Robot is at home, safely catching point cloud data.")
             if single_obj_testing:
                 input("Pleas put object on table and press any number to continue!")
-        rospy.loginfo("rospy is waiting for message: /table_top_points")
-        #kinect_data = rospy.wait_for_message("/kinect2/sd/points", PointCloud2)
-        
-        # read pcd files
-        cloud = pcl.load('pringles_original.pcd')
-        
-        # Extract point cloud data
-        points = cloud.to_array()
-        
-        # Create ROS PointCloud2 message
-        header = rospy.Header()
-        header.stamp = rospy.Time.now()
-        header.frame_id = "world"  # Set the frame ID accordingly
-        
-        pc2_msg = point_cloud2.create_cloud_xyz32(header, points)
-        kinect_data = pc2_msg 
-        # read pcd files
-       
+        rospy.loginfo("rospy is waiting for message: /kinect2/sd/points")
+        kinect_data = rospy.wait_for_message("/kinect2/sd/points", PointCloud2)
         real_good_grasp = []
         real_bad_grasp = []
         real_score_value = []
@@ -500,7 +478,6 @@ if __name__ == '__main__':
                     else:
                         points_modify = in_ind_points[ii][np.random.choice(len(in_ind_points[ii]),
                                                                            input_points_num, replace=True)]
-                    print('hello')
                     if_good_grasp, grasp_score_tmp = test_network(model.eval(), points_modify)
                     predict.append(if_good_grasp.item())
                     grasp_score.append(grasp_score_tmp)
@@ -576,10 +553,7 @@ if __name__ == '__main__':
             rospy.sleep(4)
             pub2.publish(single_grasp_list_pub)
             pub1.publish(marker_array_single)
-            
-            
-        rospy.loginfo("Nuno, I'm exiting here!")
-        exit(-1)
         # pub2.publish(grasp_msg_list)
         rospy.loginfo(" Publishing grasp pose to rviz using marker array and good grasp pose")
         rate.sleep()
+
