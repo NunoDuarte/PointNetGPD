@@ -112,6 +112,14 @@ def get_voxel_fun(points_, n):
 def cal_grasp(msg, cam_pos_):
     points_ = pointclouds.pointcloud2_to_xyz_array(msg)
     points_ = points_.astype(np.float32)
+    
+    # Display the results
+    print('Total number of points: ', len(points_))
+    np_points_ = np.asarray(points_)
+    print('Mean: ', np.mean(np_points_[:]))
+    print('Standard Deviation: ', np.std(np_points_[:]))
+    input()
+    
     remove_white = False
     if remove_white:
         points_ = remove_white_pixel(msg, points_, vis=True)
@@ -389,7 +397,18 @@ def remove_grasp_outside_tray(grasps_, points_):
                                                                                               len(grasps_inside_)))
     return grasps_inside_
 
+def calculate_statistics(pcl_data):
+    # Get the total number of points
+    num_points = pcl_data.size
 
+    # Calculate the mean
+    mean = pcl_data.to_array().mean(axis=0)
+
+    # Calculate the standard deviation
+    std_dev = pcl_data.to_array().std(axis=0)
+
+    return num_points, mean, std_dev
+    
 if __name__ == '__main__':
     """
     definition of gotten grasps:
@@ -405,7 +424,7 @@ if __name__ == '__main__':
     rate = rospy.Rate(10)
     rospy.set_param("/robot_at_home", "true")  # only use when in simulation test.
     rospy.loginfo("getting transform from kinect2 to table top")
-    cam_pos = 0
+    cam_pos = [0.0, 0.0, 0.0]
     if cam_pos is None:
         print("Please change the above line to the position between /table_top and /kinect2_ir_optical_frame")
         print("In ROS, you can run: rosrun tf tf_echo /table_top /kinect2_ir_optical_frame")
@@ -424,6 +443,25 @@ if __name__ == '__main__':
                 input("Pleas put object on table and press any number to continue!")
         rospy.loginfo("rospy is waiting for message: /kinect2/sd/points")
         kinect_data = rospy.wait_for_message("/kinect2/sd/points", PointCloud2)
+        
+        kinect_data_msg = pointclouds.pointcloud2_to_xyz_array(kinect_data)
+        
+        kinect_data_msg = kinect_data_msg.astype(np.float32)
+        # Convert PointCloud2 to PCL PointCloud
+        pcl_data = pcl.PointCloud()
+        pcl_data.from_array(kinect_data_msg)
+        
+        num_points, mean, std_dev = calculate_statistics(pcl_data)
+        
+        # Display the results
+        print(f'Total number of points: {num_points}')
+        print(f'Mean: {mean}')
+        print(f'Standard Deviation: {std_dev}')
+        
+        input()
+        
+        pcl.save(pcl_data, 'kinect2pcd.pcd') 
+        
         real_good_grasp = []
         real_bad_grasp = []
         real_score_value = []
