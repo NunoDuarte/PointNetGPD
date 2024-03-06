@@ -113,6 +113,13 @@ def get_voxel_fun(points_, n):
 def cal_grasp(msg, cam_pos_):
     points_ = pointclouds.pointcloud2_to_xyz_array(msg)
     points_ = points_.astype(np.float32)
+    
+    # Display the results
+    print('Total number of points: ', len(points_))
+    np_points_ = np.asarray(points_)
+    print('Mean: ', np.mean(np_points_[:]))
+    print('Standard Deviation: ', np.std(np_points_[:]))
+        
     remove_white = False
     if remove_white:
         points_ = remove_white_pixel(msg, points_, vis=True)
@@ -127,47 +134,45 @@ def cal_grasp(msg, cam_pos_):
             rospy.loginfo("the voxel has {} points, we want get {} points".format(len(points_voxel_), len(points_)))
 
     rospy.loginfo("the voxel has {} points, we want get {} points".format(len(points_voxel_), len(points_)))
+    
     points_ = points_voxel_
     remove_points = False
     if remove_points:
         points_ = remove_table_points(points_, vis=True)
-        
-
     point_cloud = pcl.PointCloud(points_)
+    
     norm = point_cloud.make_NormalEstimation()
-    norm.set_KSearch(15)  # critical parameter when calculating the norms
+    norm.set_KSearch(60)  # critical parameter when calculating the norms
     normals = norm.compute()
     surface_normal = normals.to_array()
     surface_normal = surface_normal[:, 0:3]
-
     vector_p2cam = cam_pos_ - points_
-    point_cloud_p2cam = pcl.PointCloud(vector_p2cam.astype('float32'))
     vector_p2cam = vector_p2cam / np.linalg.norm(vector_p2cam, axis=1).reshape(-1, 1)
     tmp = np.dot(vector_p2cam, surface_normal.T).diagonal()
     angel = np.arccos(np.clip(tmp, -1.0, 1.0))
+    
     wrong_dir_norm = np.where(angel > np.pi * 0.5)[0]
     tmp = np.ones([len(angel), 3])
-    
     tmp[wrong_dir_norm, :] = -1
     surface_normal = surface_normal * tmp
     select_point_above_table = 0.010
     #  modify of gpg: make it as a parameter. avoid select points near the table.
+    points_for_sample = points_[np.where(points_[:, 2] > select_point_above_table)[0]]
     
-    points_for_sample = points_ #points_[np.where(points_[:, 2] > select_point_above_table)[0]]
     if len(points_for_sample) == 0:
         rospy.loginfo("Can not seltect point, maybe the point cloud is too low?")
         return [], points_, surface_normal
     yaml_config['metrics']['robust_ferrari_canny']['friction_coef'] = value_fc
     if not using_mp:
         rospy.loginfo("Begin cal grasps using single thread, slow!")
-        grasps_together_ = ags.sample_grasps(point_cloud_p2cam, points_for_sample, surface_normal, num_grasps,
+        grasps_together_ = ags.sample_grasps(point_cloud, points_for_sample, surface_normal, num_grasps,
                                              max_num_samples=max_num_samples, show_final_grasp=show_final_grasp)
     else:
         # begin parallel grasp:
         rospy.loginfo("Begin cal grasps using parallel!")
 
         def grasp_task(num_grasps_, ags_, queue_):
-            ret = ags_.sample_grasps(point_cloud_p2cam, points_for_sample, surface_normal, num_grasps_,
+            ret = ags_.sample_grasps(point_cloud, points_for_sample, surface_normal, num_grasps_,
                                      max_num_samples=max_num_samples, show_final_grasp=show_final_grasp)
             queue_.put(ret)
 
@@ -397,6 +402,19 @@ def remove_grasp_outside_tray(grasps_, points_):
     return grasps_inside_
 
 
+def calculate_statistics(pcl_data):
+    # Get the total number of points
+    num_points = pcl_data.size
+
+    # Calculate the mean
+    mean = pcl_data.to_array().mean(axis=0)
+
+    # Calculate the standard deviation
+    std_dev = pcl_data.to_array().std(axis=0)
+
+    return num_points, mean, std_dev
+
+
 if __name__ == '__main__':
     """
     definition of gotten grasps:
@@ -412,7 +430,7 @@ if __name__ == '__main__':
     rate = rospy.Rate(10)
     rospy.set_param("/robot_at_home", "true")  # only use when in simulation test.
     rospy.loginfo("getting transform from kinect2 to table top")
-    cam_pos = [0.1, 0.1, 0.1]
+    cam_pos = [-1.5, -1.5, -1.5]
     if cam_pos is None:
         print("Please change the above line to the position between /table_top and /kinect2_ir_optical_frame")
         print("In ROS, you can run: rosrun tf tf_echo /table_top /kinect2_ir_optical_frame")
@@ -433,15 +451,15 @@ if __name__ == '__main__':
         #kinect_data = rospy.wait_for_message("/kinect2/sd/points", PointCloud2)
         
         # read pcd files
-        cloud = pcl.load('pringles_original.pcd')
-        
+        cloud = pcl.load('complete_pc.pcd')
+              
         # Extract point cloud data
         points = cloud.to_array()
         
         # Create ROS PointCloud2 message
         header = rospy.Header()
         header.stamp = rospy.Time.now()
-        header.frame_id = "world"  # Set the frame ID accordingly
+        header.frame_id = "kinect2_rgb_optical_frame"  # Set the frame ID accordingly
         
         pc2_msg = point_cloud2.create_cloud_xyz32(header, points)
         kinect_data = pc2_msg 
