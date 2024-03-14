@@ -20,7 +20,7 @@ parser.add_argument("--load-model", type=str,
 parser.add_argument("--show_final_grasp", action="store_true", default=True)
 parser.add_argument("--tray_grasp", action="store_true", default=False)
 parser.add_argument("--using_mp", action="store_true", default=False)
-parser.add_argument("--model_type", type=str)
+parser.add_argument("--model_type", type=str, default="3class")
 
 args = parser.parse_args()
 
