@@ -142,7 +142,7 @@ def cal_grasp(msg, cam_pos_):
     point_cloud = pcl.PointCloud(points_)
     
     norm = point_cloud.make_NormalEstimation()
-    norm.set_KSearch(60)  # critical parameter when calculating the norms
+    norm.set_KSearch(80)  # critical parameter when calculating the norms
     normals = norm.compute()
     surface_normal = normals.to_array()
     surface_normal = surface_normal[:, 0:3]
@@ -502,6 +502,7 @@ if __name__ == '__main__':
             if not robot_at_home:
                 rospy.loginfo("robot is not at home, stop calculating the grasp score")
                 break
+            print('shape', in_ind_points[ii].shape[0])
             if in_ind_points[ii].shape[0] < minimal_points_send_to_point_net:
                 rospy.loginfo("Mark as bad grasp! Only {} points, should be at least {} points.".format(
                               in_ind_points[ii].shape[0], minimal_points_send_to_point_net))
@@ -519,7 +520,7 @@ if __name__ == '__main__':
                     else:
                         points_modify = in_ind_points[ii][np.random.choice(len(in_ind_points[ii]),
                                                                            input_points_num, replace=True)]
-                    print('hello')
+                    print('points_modify', points_modify)
                     if_good_grasp, grasp_score_tmp = test_network(model.eval(), points_modify)
                     predict.append(if_good_grasp.item())
                     grasp_score.append(grasp_score_tmp)
