@@ -1,4 +1,7 @@
 # PointNetGPD: Detecting Grasp Configurations from Point Sets
+
+# To run inference (main_test) you need to check the input size. It must match the input size that the network was trained on. 
+
 PointNetGPD (ICRA 2019, [arXiv](https://arxiv.org/abs/1809.06267)) is an end-to-end grasp evaluation model to address the challenging problem of localizing robot grasp configurations directly from the point cloud.
 
 PointNetGPD is light-weighted and can directly process the 3D point cloud that locates within the gripper for grasp evaluation. Taking the raw point cloud as input, our proposed grasp evaluation network can capture the complex geometric structure of the contact area between the gripper and the object even if the point cloud is very sparse.
