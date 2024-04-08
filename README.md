@@ -1,7 +1,11 @@
 # PointNetGPD: Detecting Grasp Configurations from Point Sets
 
 # To run inference (main_test) you need to check the input size. It must match the input size that the network was trained on. 
-Currently all main_ have a default of 750 input points. 
+Currently all main_ have a default of 750 input points. The main_test.py always gives the same result (which is not a good sign)
+
+
+
+------//------
 
 PointNetGPD (ICRA 2019, [arXiv](https://arxiv.org/abs/1809.06267)) is an end-to-end grasp evaluation model to address the challenging problem of localizing robot grasp configurations directly from the point cloud.
 
