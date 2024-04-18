@@ -62,7 +62,8 @@ if args.model_type == "100":  # minimal points send for training
 elif args.model_type == "50":
     input_points_num = 750
 elif args.model_type == "3class":
-    input_points_num = 500
+    input_points_num = 750
+    #input_points_num = 500
 else:
     input_points_num = 0
 
@@ -118,7 +119,6 @@ def cal_grasp(msg, cam_pos_):
     np_points_ = np.asarray(points_)
     print('Mean: ', np.mean(np_points_[:]))
     print('Standard Deviation: ', np.std(np_points_[:]))
-    input()
     
     remove_white = False
     if remove_white:
@@ -408,7 +408,8 @@ def calculate_statistics(pcl_data):
     std_dev = pcl_data.to_array().std(axis=0)
 
     return num_points, mean, std_dev
-    
+
+
 if __name__ == '__main__':
     """
     definition of gotten grasps:
@@ -517,11 +518,14 @@ if __name__ == '__main__':
                                                                            input_points_num, replace=True)]
                     print('points_modify', points_modify)
                     if_good_grasp, grasp_score_tmp = test_network(model.eval(), points_modify)
+                    print('if_good_grasp', if_good_grasp)
+                    print('grasp_score_tmp', grasp_score_tmp)
                     predict.append(if_good_grasp.item())
                     grasp_score.append(grasp_score_tmp)
 
                 predict_vote = mode(predict)[0][0]  # vote from all the "repeat" results.
                 grasp_score = np.array(grasp_score)
+                print('predict', predict)
                 if args.model_type == "3class":  # the best in 3 class classification is the last column, third column
                     which_one_is_best = 2  # should set as 2
                 else:  # for two class classification best is the second column (also the last column)
@@ -529,7 +533,8 @@ if __name__ == '__main__':
                 score_vote = np.mean(grasp_score[np.where(predict == predict_vote)][:, 0, which_one_is_best])
                 score.append(predict_vote)
                 score_value.append(score_vote)
-
+                
+                print('score[ii]', score[ii])
                 if score[ii] == which_one_is_best:
                     ind_good_grasp.append(ii)
                 else:
